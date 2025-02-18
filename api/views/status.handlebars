@@ -1,0 +1,16 @@
+<div class="container">
+    <h1>Payment Status</h1>
+    <div class="status {{#if isSuccessful}}success{{else}}failure{{/if}}">
+        {{statusMessage}}
+    </div>
+    <div class="message">
+        {{detailedMessage}}
+    </div>
+    <div class="details">
+        <div>Reference ID</div>
+        <div class="reference">{{reference}}</div>
+        <div>Transaction ID</div>
+        <div class="reference">{{payRequestId}}</div>
+    </div>
+    <a href="http://localhost:5173" class="cta">Return to Store →</a>
+</div>
