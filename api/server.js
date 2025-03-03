@@ -9,11 +9,11 @@ const exphbs = require('express-handlebars')
 require('dotenv').config()
 
 // Environment variables validation
+const BASE_URL = process.env.BASE_URL
+const PORT = process.env.PORT
 const PAYGATE_URL = process.env.PAYGATE_URL
 const PAYGATE_ID = process.env.PAYGATE_ID
 const PAYGATE_KEY = process.env.PAYGATE_KEY
-const PORT = process.env.PORT || 3000
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3000'
 
 if (!PAYGATE_ID || !PAYGATE_KEY) {
   console.error('Required environment variables PAYGATE_ID and PAYGATE_KEY must be set')
