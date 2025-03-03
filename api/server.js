@@ -63,11 +63,11 @@ app.post('/api/pay', async (req, res) => {
       AMOUNT: formattedAmount,
       CURRENCY: currency,
       RETURN_URL: `${BASE_URL}/api/return`,
-      // NOTIFY_URL: `${BASE_URL}/api/notify`, // Enable notify URL if you want - its been acting funny lately though.
       TRANSACTION_DATE: new Date().toISOString().slice(0, 19).replace('T', ' '),
       LOCALE: 'en-bw',
       COUNTRY: 'BWA',
-      EMAIL: email
+      EMAIL: email,
+      NOTIFY_URL: `${BASE_URL}/api/notify`
     }
 
     // Generate CHECKSUM
@@ -194,6 +194,8 @@ app.post('/api/notify', async (req, res) => {
     // Verify transaction status
     const isSuccessful = notifyData.TRANSACTION_STATUS === '1'
 
+    console.log('isSuccessful', isSuccessful)
+
     // Update your database/business logic here
     // await updateOrderStatus(notifyData.REFERENCE, isSuccessful)
     // await sendConfirmationEmail(notifyData.EMAIL)
@@ -215,11 +217,11 @@ function generateSignature(params) {
     'AMOUNT',
     'CURRENCY',
     'RETURN_URL',
-    'NOTIFY_URL',
     'TRANSACTION_DATE',
     'LOCALE',
     'COUNTRY',
-    'EMAIL'
+    'EMAIL',
+    'NOTIFY_URL'
   ]
 
   const hashString = fields.map((field) => String(params[field] || '')).join('') + PAYGATE_KEY

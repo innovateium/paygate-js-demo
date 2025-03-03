@@ -8,7 +8,7 @@ const App = () => {
   const [formData, setFormData] = useState({
     amount: '999',
     email: 'youremail@gmail.com',
-    currency: 'BWP'
+    currency: 'ZAR'
   })
 
   const formatDisplayAmount = (cents) => (parseFloat(cents) / 100).toFixed(2)
@@ -98,9 +98,9 @@ const App = () => {
           </div>
 
           <div className="input-group">
-            <label className="label">Amount (BWP)</label>
+            <label className="label">Amount (ZAR)</label>
             <div className="amount-input">
-              <span className="currency-symbol">P</span>
+              <span className="currency-symbol">R</span>
               <input
                 type="text"
                 name="amount"
