@@ -43,10 +43,10 @@ Create `.env` file in `/api` directory:
 
 ```
 PAYGATE_URL=https://secure.paygate.co.za
-PAYGATE_ID=<your_paygate_id>
-PAYGATE_KEY=<your_paygate_key>
+PAYGATE_ID=<your_paygate_id> # for testing use "10011072130" (PayGate Demo ID)
+PAYGATE_KEY=<your_paygate_key> # for testing use "secret" (PayGate Demo Secret Key)
 PORT=3000
-BASE_URL=http://localhost:3000
+BASE_URL=https://ngrok.com/api/v1 # for local development - please use NGROK or other tunneling services to expose your local server to the internet, not localhost, else it will fail
 ```
 
 ## Running the Application
