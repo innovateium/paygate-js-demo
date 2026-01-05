@@ -1,4 +1,4 @@
-# PayGate Payment Integration Demo by mrdiin.dev
+# PayGate Payment Integration Demo by [mrdiin.dev](https://github.com/mrdiin)
 
 A full-stack payment integration demo using PayGate's PayWeb3 API, built with Express.js and React.
 
