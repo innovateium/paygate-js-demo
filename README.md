@@ -1,12 +1,15 @@
 # PayGate Payment Integration Demo by [mrdiin.dev](https://github.com/mrdiin)
 
-A full-stack payment integration demo using PayGate's PayWeb3 API, built with Express.js and React.
+A full-stack payment integration demo using PayGate's PayWeb3 and PaySubs APIs, built with Express.js and React.
 
 ## Features
 
-- Secure payment processing through PayGate PayWeb3
+- Secure one-time payment processing through PayGate PayWeb3
+- Recurring billing (subscriptions) through PayGate PaySubs
 - Real-time transaction status updates
 - Support for multiple currencies
+- Configurable billing frequencies (weekly, monthly, bimonthly, quarterly)
+- Process-now option for immediate payment on subscription creation
 - Responsive UI for all devices
 - Comprehensive error handling
 - Transaction status tracking
@@ -41,13 +44,21 @@ npm install
 
 Create `.env` file in `/api` directory:
 
-```
-PAYGATE_URL=https://secure.paygate.co.za
-PAYGATE_ID=<your_paygate_id>                   # for testing use "10011072130" (PayGate Demo ID)
-PAYGATE_KEY=<your_paygate_key>                 # for testing use "secret" (PayGate Demo Secret Key)
-BASE_URL=https://123-abc.ngrok-free.app        # for local development - please use NGROK or other tunneling services to expose your local server to the internet, not localhost, else it will fail
+```bash
+BASE_URL=https://123-abc.ngrok-free.app       # for local development - please use NGROK or other tunneling services to expose your local server to the internet, not localhost, else it will fail
 PORT=3000
+
+# PayWeb3 credentials (optional, defaults to sandbox test credentials)
+PAYWEB_ID=10011072130
+PAYWEB_KEY=secret
+
+# PaySubs credentials (optional, defaults to sandbox test credentials)
+PAYSUBS_URL=https://www.paygate.co.za/paysubs/process.trans
+PAYSUBS_ID=10011072130
+PAYSUBS_KEY=secret
 ```
+
+> **Note:** PayWeb3 and PaySubs use independent environment variables so they can be configured with different credentials per product.
 
 ## Running the Application
 
@@ -72,10 +83,32 @@ The application will be available at:
 
 ## API Endpoints
 
+### PayWeb3 (One-Time Payments)
+
 - `POST /api/pay` - Initiate payment transaction
 - `POST /api/return` - Handle payment return
 - `GET /api/status` - Check payment status
 - `POST /api/notify` - Handle PayGate notifications (IPN)
+
+### PaySubs (Recurring Billing)
+
+- `POST /api/paysubs/subscribe` - Initiate subscription with billing details
+- `GET|POST /api/paysubs/return` - Handle subscription redirect from PayGate (supports both GET and POST)
+- `GET /api/paysubs/status` - View subscription status page
+
+## Checksum Implementation
+
+Both PayWeb3 and PaySubs use MD5 checksums, but with different algorithms:
+
+**PayWeb3:** Fields are concatenated directly (no separator) followed by the encryption key.
+```
+CHECKSUM = md5(VERSION + PAYGATE_ID + ... + NOTIFY_URL + KEY)
+```
+
+**PaySubs:** Fields are joined with pipe (`|`) delimiters, followed by a `|` separator and the encryption key. The `EMAIL` field is conditionally included only when provided.
+```
+CHECKSUM = md5(VERSION | PAYGATE_ID | ... | PROCESS_NOW_AMOUNT | KEY)
+```
 
 ## Security Considerations
 
@@ -93,10 +126,21 @@ cd client
 npm run build
 ```
 
-2. Set production environment variables
+2. Set production environment variables (`PAYWEB_ID`, `PAYWEB_KEY`, `PAYSUBS_ID`, `PAYSUBS_KEY`, etc.)
 3. Configure SSL/TLS
 4. Update CORS settings in API
 5. Set up proper monitoring and logging
+
+## Sandbox Testing
+
+For testing with PayGate's sandbox environment:
+
+- **PayGate ID:** `10011072130`
+- **Encryption Key:** `secret`
+- **PaySubs endpoint:** `https://www.paygate.co.za/paysubs/process.trans`
+- **PayWeb3 endpoint:** `https://secure.paygate.co.za/payweb3/process.trans`
+
+The demo app defaults to these credentials when no environment variables are set.
 
 ## License
 
