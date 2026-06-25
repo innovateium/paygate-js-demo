@@ -12,6 +12,11 @@ require('dotenv').config()
 const BASE_URL = process.env.BASE_URL
 const PORT = process.env.PORT
 const PAYGATE_URL = process.env.PAYGATE_URL
+const PAYSUBS_URL = process.env.PAYSUBS_URL || 'https://www.paygate.co.za/paysubs/process.trans'
+const PAYSUBS_ID = process.env.PAYSUBS_ID || '10011072130'
+const PAYSUBS_KEY = process.env.PAYSUBS_KEY || 'secret'
+const PAYWEB_ID = process.env.PAYWEB_ID || '10011072130'
+const PAYWEB_KEY = process.env.PAYWEB_KEY || 'secret'
 const PAYGATE_ID = process.env.PAYGATE_ID
 const PAYGATE_KEY = process.env.PAYGATE_KEY
 
@@ -58,7 +63,7 @@ app.post('/api/pay', async (req, res) => {
     const formattedAmount = String(amount).replace(/[^0-9]/g, '')
 
     const transactionData = {
-      PAYGATE_ID,
+      PAYGATE_ID: PAYWEB_ID,
       REFERENCE: `ORDER_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       AMOUNT: formattedAmount,
       CURRENCY: currency,
@@ -148,7 +153,7 @@ app.get('/api/status', async (req, res) => {
 
     // Query PayGate for latest status
     const queryData = {
-      PAYGATE_ID,
+      PAYGATE_ID: PAYWEB_ID,
       PAY_REQUEST_ID: id,
       REFERENCE: transactionStore.get(id)
     }
@@ -187,7 +192,7 @@ app.post('/api/notify', async (req, res) => {
     const notifyData = req.body
     console.log('Payment Notification Data:', notifyData)
 
-    if (!notifyData.PAY_REQUEST_ID || !notifyData.TRANSACTION_STATUS) {
+    if (!notifyData.PAY_REQUEST_ID) {
       throw new Error('Invalid notification data')
     }
 
@@ -208,6 +213,179 @@ app.post('/api/notify', async (req, res) => {
   }
 })
 
+// === PaySubs Endpoints ===
+
+// PaySubs frequency code descriptions
+const SUBS_FREQUENCIES = {
+  111: 'Weekly on Sunday',
+  112: 'Weekly on Monday',
+  113: 'Weekly on Tuesday',
+  114: 'Weekly on Wednesday',
+  115: 'Weekly on Thursday',
+  116: 'Weekly on Friday',
+  117: 'Weekly on Saturday',
+  121: '2nd Weekly on Sunday',
+  122: '2nd Weekly on Monday',
+  123: '2nd Weekly on Tuesday',
+  124: '2nd Weekly on Wednesday',
+  125: '2nd Weekly on Thursday',
+  126: '2nd Weekly on Friday',
+  127: '2nd Weekly on Saturday',
+  131: '3rd Weekly on Sunday',
+  132: '3rd Weekly on Monday',
+  133: '3rd Weekly on Tuesday',
+  134: '3rd Weekly on Wednesday',
+  135: '3rd Weekly on Thursday',
+  136: '3rd Weekly on Friday',
+  137: '3rd Weekly on Saturday',
+  201: 'Monthly on 1st',
+  228: 'Monthly on 28th',
+  229: 'Last day of the month',
+  301: 'Every 2nd month on 1st',
+  328: 'Every 2nd month on 28th',
+  329: 'Every 2nd month on last day',
+  401: 'Every 3rd month on 1st',
+  428: 'Every 3rd month on 28th',
+  429: 'Every 3rd month on last day'
+}
+
+// POST /api/paysubs/subscribe — generate subscription redirect form data
+app.post('/api/paysubs/subscribe', async (req, res) => {
+  try {
+    const {
+      amount,
+      currency = 'ZAR',
+      email,
+      subsStartDate,
+      subsEndDate,
+      subsFrequency,
+      processNow = 'NO',
+      processNowAmount = ''
+    } = req.body
+
+    if (!amount || !subsStartDate || !subsEndDate || !subsFrequency) {
+      return res.status(400).json({ error: 'Amount, start date, end date, and frequency are required' })
+    }
+
+    const formattedAmount = String(amount).replace(/[^0-9]/g, '')
+    const formattedProcessNowAmount = processNow === 'YES' ? String(processNowAmount).replace(/[^0-9]/g, '') : ''
+
+    const reference = `SUBS_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    const returnUrl = `${BASE_URL}/api/paysubs/return`
+
+    const subsData = {
+      VERSION: '21',
+      PAYGATE_ID: PAYSUBS_ID,
+      REFERENCE: reference,
+      AMOUNT: formattedAmount,
+      CURRENCY: currency,
+      RETURN_URL: returnUrl,
+      TRANSACTION_DATE: new Date().toISOString().slice(0, 16).replace('T', ' '),
+      SUBS_START_DATE: subsStartDate,
+      SUBS_END_DATE: subsEndDate,
+      SUBS_FREQUENCY: subsFrequency,
+      PROCESS_NOW: processNow,
+      PROCESS_NOW_AMOUNT: formattedProcessNowAmount
+    }
+
+    if (email) {
+      subsData.EMAIL = email
+    }
+
+    const checksum = generatePaySubsSignature(subsData)
+    subsData.CHECKSUM = checksum
+
+    console.log('PaySubs request:', { ...subsData, PAYGATE_KEY: '***' })
+
+    // Return the form fields so the frontend can POST the redirect
+    res.json({
+      success: true,
+      formFields: subsData,
+      paymentUrl: PAYSUBS_URL,
+      reference
+    })
+  } catch (error) {
+    console.error('PaySubs initiation failed:', {
+      message: error.message,
+      stack: error.stack
+    })
+
+    res.status(500).json({
+      success: false,
+      error: 'PaySubs initiation failed',
+      message: error.message
+    })
+  }
+})
+
+// GET|POST /api/paysubs/return — handle redirect back from PaySubs
+app.all('/api/paysubs/return', async (req, res) => {
+  try {
+    const data = { ...req.query, ...req.body }
+    console.log('PaySubs Return Data:', data)
+
+    const transactionStatus = data.TRANSACTION_STATUS
+    const subscriptionId = data.SUBSCRIPTION_ID
+    const transactionId = data.TRANSACTION_ID
+    const resultCode = data.RESULT_CODE
+    const resultDesc = data.RESULT_DESC
+    const authCode = data.AUTH_CODE
+
+    // Store subscription info
+    if (subscriptionId) {
+      transactionStore.set(data.REFERENCE, subscriptionId)
+    }
+
+    res.redirect(
+      `/api/paysubs/status?` +
+      `reference=${encodeURIComponent(data.REFERENCE || '')}` +
+      `&status=${encodeURIComponent(transactionStatus || '')}` +
+      `&resultCode=${encodeURIComponent(resultCode || '')}` +
+      `&resultDesc=${encodeURIComponent(resultDesc || '')}` +
+      `&authCode=${encodeURIComponent(authCode || '')}` +
+      `&subscriptionId=${encodeURIComponent(subscriptionId || '')}` +
+      `&transactionId=${encodeURIComponent(transactionId || '')}` +
+      `&riskIndicator=${encodeURIComponent(data.RISK_INDICATOR || '')}` +
+      `&amount=${encodeURIComponent(data.AMOUNT || '')}`
+    )
+  } catch (error) {
+    console.error('PaySubs return handler error:', error)
+    res.status(400).send('Error processing subscription return')
+  }
+})
+
+// GET /api/paysubs/status — render subscription status
+app.get('/api/paysubs/status', async (req, res) => {
+  try {
+    const { reference, status, resultCode, resultDesc, authCode, subscriptionId, transactionId, riskIndicator, amount } = req.query
+
+    const statusCode = status || ''
+    const isSuccessful = statusCode === '1'
+    const isCreated = statusCode === '5'
+    const displayStatus = isSuccessful ? 'Approved' : isCreated ? 'Subscription Created' : getStatusMessage(statusCode)
+
+    const formattedAmount = amount ? (parseInt(amount, 10) / 100).toFixed(2) : ''
+
+    res.render('subs-status', {
+      title: 'Subscription Status',
+      reference,
+      subscriptionId,
+      transactionId,
+      status: displayStatus,
+      resultCode,
+      resultDesc,
+      authCode,
+      riskIndicator,
+      amount: formattedAmount,
+      isSuccessful,
+      isCreated
+    })
+  } catch (error) {
+    console.error('PaySubs status page error:', error)
+    res.status(400).send('Error displaying subscription status')
+  }
+})
+
 // === Helper Functions ===
 function generateSignature(params) {
   const fields = [
@@ -224,7 +402,32 @@ function generateSignature(params) {
     'NOTIFY_URL'
   ]
 
-  const hashString = fields.map((field) => String(params[field] || '')).join('') + PAYGATE_KEY
+  const hashString = fields.map((field) => String(params[field] || '')).join('') + PAYWEB_KEY
+
+  return crypto.createHash('md5').update(hashString).digest('hex').toLowerCase()
+}
+
+function generatePaySubsSignature(params) {
+  const fields = [
+    'VERSION',
+    'PAYGATE_ID',
+    'REFERENCE',
+    'AMOUNT',
+    'CURRENCY',
+    'RETURN_URL',
+    'TRANSACTION_DATE',
+    'SUBS_START_DATE',
+    'SUBS_END_DATE',
+    'SUBS_FREQUENCY',
+    'PROCESS_NOW',
+    'PROCESS_NOW_AMOUNT'
+  ]
+
+  if (params.EMAIL) {
+    fields.splice(7, 0, 'EMAIL')
+  }
+
+  const hashString = fields.map((field) => String(params[field] || '')).join('|') + '|' + PAYSUBS_KEY
 
   return crypto.createHash('md5').update(hashString).digest('hex').toLowerCase()
 }
