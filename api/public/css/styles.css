@@ -86,6 +86,11 @@ h1 {
   color: #c53030;
 }
 
+.info {
+  background: #bee3f8;
+  color: #2b6cb0;
+}
+
 .details {
   background: #f7fafc;
   padding: 1.5rem;
